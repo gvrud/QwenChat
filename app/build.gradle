@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.qwenchat'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.example.qwenchat'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        externalNativeBuild {
+            cmake {
+                arguments '-DCMAKE_BUILD_TYPE=Release', '-DGGML_OPENMP=OFF', '-DGGML_LLAMAFILE=ON'
+                cppFlags '-O3'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // llama.cpp sources live in libs/; keep them out of packaging (CMake only)
+    sourceSets {
+        main {
+            jniLibs.srcDirs = []
+        }
+    }
+
+    ndkVersion '26.3.11579264'
+}
