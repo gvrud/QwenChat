@@ -144,4 +144,17 @@ public final class ModelStore {
     public void setDarkTheme(boolean v) {
         sp.edit().putBoolean("dark", v).apply();
     }
+
+    /**
+     * Multiplies every sp-sized text in the app, including dialog titles and buttons, because
+     * the activity applies it through Configuration.fontScale.
+     */
+    public float fontScale() {
+        float v = sp.getFloat("font", 1f);
+        return Math.max(0.7f, Math.min(1.6f, v));
+    }
+
+    public void setFontScale(float v) {
+        sp.edit().putFloat("font", Math.round(v * 10f) / 10f).apply();
+    }
 }

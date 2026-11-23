@@ -2,6 +2,8 @@ package com.example.qwenchat;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
+import android.content.res.Configuration;
 import android.content.Intent;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -34,8 +36,10 @@ public class MainActivity extends Activity {
     private ChatStore store;
     private ModelStore models;
     private Chat chat;
-    private long engine;
-    private int ctxSize;
+    // Static: the model survives recreate() after a font or theme change.
+    private static long engine;
+    private static int ctxSize;
+    private static boolean keepModel;
     private volatile boolean[] cancel = new boolean[1];
     private volatile boolean busy;
 
@@ -51,8 +55,22 @@ public class MainActivity extends Activity {
     private boolean dark;
 
     @Override
+    protected void attachBaseContext(Context base) {
+        // fontScale reaches every sp unit in this activity, dialogs included.
+        float scale = new ModelStore(base).fontScale();
+        if (Math.abs(scale - 1f) < 0.01f) {
+            super.attachBaseContext(base);
+            return;
+        }
+        Configuration cfg = new Configuration(base.getResources().getConfiguration());
+        cfg.fontScale = scale;
+        super.attachBaseContext(base.createConfigurationContext(cfg));
+    }
+
+    @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        keepModel = false;
         store = new ChatStore(this);
         models = new ModelStore(this);
         dark = models.darkTheme();
@@ -184,6 +202,7 @@ public class MainActivity extends Activity {
     private void toggleTheme() {
         dark = !dark;
         models.setDarkTheme(dark);
+        keepModel = true;
         recreate();
     }
 
@@ -255,6 +274,10 @@ public class MainActivity extends Activity {
     // ---------------- model ----------------
 
     private void loadSelectedModel() {
+        if (engine != 0) {
+            refresh();
+            return;
+        }
         File f = models.modelFile();
         if (!f.isFile()) {
             refresh();
@@ -592,6 +615,7 @@ public class MainActivity extends Activity {
                 "Скачать модель",
                 "Загрузить свой GGUF",
                 "Тема: " + (dark ? "тёмная" : "светлая"),
+                "Шрифт: " + Math.round(models.fontScale() * 100) + "% (− / +)",
                 "Контекст: " + models.ctx() + " токенов",
                 "Потоки CPU: " + models.threads(),
                 "Температура: " + models.temperature(),
@@ -605,14 +629,32 @@ public class MainActivity extends Activity {
                         case 0: showDownloadDialog(); break;
                         case 1: importGguf(); break;
                         case 2: toggleTheme(); break;
-                        case 3: pickCtx(); break;
-                        case 4: pickThreads(); break;
-                        case 5: pickTemp(); break;
-                        case 6: models.setNoMmap(!models.noMmap()); reloadModel(); break;
+                        case 3: showFontDialog(); break;
+                        case 4: pickCtx(); break;
+                        case 5: pickThreads(); break;
+                        case 6: pickTemp(); break;
+                        case 7: models.setNoMmap(!models.noMmap()); reloadModel(); break;
                         default: about(); break;
                     }
                 })
                 .show();
+    }
+
+    private void showFontDialog() {
+        dialog()
+                .setTitle("Шрифт: " + Math.round(models.fontScale() * 100) + "%")
+                .setItems(new String[]{"−  Уменьшить", "+  Увеличить"}, (d, w) -> {
+                    d.dismiss();
+                    setFont(w == 0 ? -0.1f : 0.1f);
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void setFont(float delta) {
+        models.setFontScale(models.fontScale() + delta);
+        keepModel = true;
+        recreate();
     }
 
     private void pickCtx() {
@@ -656,6 +698,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         cancel[0] = true;
+        // recreate() rebuilds the activity after a font change; the old context must go,
+        // but the loaded model is reused so the change does not reload several hundred MB.
+        if (!keepModel && engine != 0) {
+            Qwen.free(engine);
+            engine = 0;
+        }
         super.onDestroy();
     }
 }
