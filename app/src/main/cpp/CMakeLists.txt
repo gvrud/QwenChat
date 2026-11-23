@@ -15,7 +15,12 @@ set(LLAMA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
-set(GGML_LLAMAFILE ON CACHE BOOL "" FORCE)
+# llamafile sgemm uses ARMv8.2 fp16 intrinsics and does not compile for 32-bit ARM.
+if (ANDROID_ABI STREQUAL "armeabi-v7a")
+    set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
+else ()
+    set(GGML_LLAMAFILE ON CACHE BOOL "" FORCE)
+endif ()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../libs/llama.cpp ${CMAKE_CURRENT_BINARY_DIR}/llama.cpp)
 
